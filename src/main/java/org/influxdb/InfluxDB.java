@@ -3,6 +3,7 @@ package org.influxdb;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.influxdb.dto.ChunkedResponse;
 import org.influxdb.dto.ContinuousQuery;
 import org.influxdb.dto.Database;
 import org.influxdb.dto.DatabaseConfiguration;
@@ -91,7 +92,7 @@ public interface InfluxDB {
 	public void writeUdp(final int port, final Serie... series);
 
 	/**
-	 * Execute a query agains a database.
+	 * Execute a query against a database.
 	 * 
 	 * @param database
 	 *            the name of the database.
@@ -104,6 +105,22 @@ public interface InfluxDB {
 	 * @return a List of Series which matched the query.
 	 */
 	public List<Serie> query(final String database, final String query, final TimeUnit precision);
+
+	/**
+     * Execute a query against a database returning a chunked response.
+     * 
+     * @param database
+     *            the name of the database.
+     * @param query
+     *            the query to execute, for language specification please see <a
+     *            href="http://influxdb.org/docs/query_language"
+     *            >http://influxdb.org/docs/query_language</a>
+     * @param precision
+     *            the precision used for the values.
+	 * @return the chunked response with the series matching the query
+	 */
+	public ChunkedResponse chunkedResponseQuery(final String database, final String query, 
+	                                            final TimeUnit precision);
 
 	/**
 	 * Create a new Database.

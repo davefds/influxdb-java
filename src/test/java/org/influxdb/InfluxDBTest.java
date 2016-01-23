@@ -3,12 +3,14 @@ package org.influxdb;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.influxdb.InfluxDB.LogLevel;
+import org.influxdb.dto.ChunkedResponse;
 import org.influxdb.dto.ContinuousQuery;
 import org.influxdb.dto.Database;
 import org.influxdb.dto.DatabaseConfiguration;
@@ -57,48 +59,68 @@ public class InfluxDBTest {
 	 */
 	@BeforeClass
 	public void setUp() throws InterruptedException, IOException {
-		// Disable logging for the DockerClient.
-		Logger.getLogger("com.sun.jersey").setLevel(Level.OFF);
-		this.dockerClient = new DockerClientImpl("http://localhost:4243");
-		this.dockerClient.pullImageCmd("majst01/influxdb-java");
-
-		ExposedPort tcp8086 = ExposedPort.tcp(8086);
-
-		Ports portBindings = new Ports();
-		portBindings.bind(tcp8086, Ports.Binding(8086));
-		this.container = this.dockerClient.createContainerCmd("majst01/influxdb-java").exec();
-		this.dockerClient.startContainerCmd(this.container.getId()).withPortBindings(portBindings).exec();
-
-		InspectContainerResponse inspectContainerResponse = this.dockerClient.inspectContainerCmd(
-				this.container.getId()).exec();
-
-		InputStream containerLogsStream = this.dockerClient
-				.logContainerCmd(this.container.getId())
-				.withStdErr()
-				.withStdOut()
-				.exec();
-
-		String ip = inspectContainerResponse.getNetworkSettings().getIpAddress();
-		this.influxDB = InfluxDBFactory.connect("http://" + ip + ":8086", "root", "root");
-		boolean influxDBstarted = false;
-		do {
-			Pong response;
-			try {
-				response = this.influxDB.ping();
-				if (response.getStatus().equalsIgnoreCase("ok")) {
-					influxDBstarted = true;
-				}
-			} catch (Exception e) {
-				// NOOP intentional
-			}
-			Thread.sleep(100L);
-		} while (!influxDBstarted);
-		this.influxDB.setLogLevel(LogLevel.FULL);
-		String logs = CharStreams.toString(new InputStreamReader(containerLogsStream, Charsets.UTF_8));
-		System.out.println("##################################################################################");
-		System.out.println("CContainer Logs: \n" + logs);
-		System.out.println("#  Connected to InfluxDB Version: " + this.influxDB.version() + " #");
-		System.out.println("##################################################################################");
+	    
+	    if ( System.getProperty( "influxdb.test.localhost" ) == null ) {
+    		// Disable logging for the DockerClient.
+    		Logger.getLogger("com.sun.jersey").setLevel(Level.OFF);
+    		this.dockerClient = new DockerClientImpl("http://localhost:4243");
+    		this.dockerClient.pullImageCmd("majst01/influxdb-java");
+    
+    		ExposedPort tcp8086 = ExposedPort.tcp(8086);
+    
+    		Ports portBindings = new Ports();
+    		portBindings.bind(tcp8086, Ports.Binding(8086));
+    		this.container = this.dockerClient.createContainerCmd("majst01/influxdb-java").exec();
+    		this.dockerClient.startContainerCmd(this.container.getId()).withPortBindings(portBindings).exec();
+    
+    		InspectContainerResponse inspectContainerResponse = this.dockerClient.inspectContainerCmd(
+    				this.container.getId()).exec();
+    
+    		InputStream containerLogsStream = this.dockerClient
+    				.logContainerCmd(this.container.getId())
+    				.withStdErr()
+    				.withStdOut()
+    				.exec();
+    
+    		String ip = inspectContainerResponse.getNetworkSettings().getIpAddress();
+    		this.influxDB = InfluxDBFactory.connect("http://" + ip + ":8086", "root", "root");
+    		boolean influxDBstarted = false;
+    		do {
+    			Pong response;
+    			try {
+    				response = this.influxDB.ping();
+    				if (response.getStatus().equalsIgnoreCase("ok")) {
+    					influxDBstarted = true;
+    				}
+    			} catch (Exception e) {
+    				// NOOP intentional
+    			}
+    			Thread.sleep(100L);
+    		} while (!influxDBstarted);
+    		this.influxDB.setLogLevel(LogLevel.FULL);
+    		String logs = CharStreams.toString(new InputStreamReader(containerLogsStream, Charsets.UTF_8));
+    		System.out.println("##################################################################################");
+    		System.out.println("CContainer Logs: \n" + logs);
+    		System.out.println("#  Connected to InfluxDB Version: " + this.influxDB.version() + " #");
+    		System.out.println("##################################################################################");
+	    } else {
+            String ip = "localhost";
+            this.influxDB = InfluxDBFactory.connect("http://" + ip + ":8086", "root", "root");
+            boolean influxDBstarted = false;
+            do {
+                Pong response;
+                try {
+                    response = this.influxDB.ping();
+                    if (response.getStatus().equalsIgnoreCase("ok")) {
+                        influxDBstarted = true;
+                    }
+                } catch (Exception e) {
+                    // NOOP intentional
+                }
+                Thread.sleep(100L);
+            } while (!influxDBstarted);
+            this.influxDB.setLogLevel(LogLevel.HEADERS);
+	    }
 	}
 
 	/**
@@ -106,8 +128,10 @@ public class InfluxDBTest {
 	 */
 	@AfterClass
 	public void tearDown() {
-		System.out.println("Kill the Docker container");
-		this.dockerClient.killContainerCmd(this.container.getId()).exec();
+        if ( System.getProperty( "influxdb.test.localhost" ) == null ) {
+    		System.out.println("Kill the Docker container");
+    		this.dockerClient.killContainerCmd(this.container.getId()).exec();
+        }
 	}
 
 	/**
@@ -301,6 +325,60 @@ public class InfluxDBTest {
 		Assert.assertEquals((Double) result.get(0).getRows().get(0).get("value2"), 5d, 0d);
 		this.influxDB.deleteDatabase(dbName);
 	}
+
+	/**
+     * Test that chunked response querying works.
+	 * @throws IOException
+     */
+    @Test
+    public void testChunkedResponseQuery() throws IOException {
+        String dbName = "chunked-response-query-unittest-" + System.currentTimeMillis();
+        this.influxDB.createDatabase(dbName);
+
+        int rows = 1000;
+        Serie[] series = new Serie[rows];
+        long startTime = System.currentTimeMillis() - rows;
+        for (int i = 0; i < rows; i++) {
+            Serie serie = new Serie.Builder("testSeries")
+                    .columns("time", "value2")
+                    .values(startTime+i, i)
+                    .build();
+            series[i] = serie;
+        }
+
+        this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
+
+        //List<Serie> result = this.influxDB.query(dbName, "select value2 from testSeries", TimeUnit.MILLISECONDS);
+        ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from testSeries", TimeUnit.MILLISECONDS);
+
+        Assert.assertNotNull( response );
+        Assert.assertTrue( response.isChunked() );
+        Assert.assertFalse( response.isEndOfStream() );
+
+        int totalRows = 0;
+        Serie chunkedSeries = null;
+        while ( (chunkedSeries = response.nextChunk()) != null) {
+
+            Assert.assertEquals( chunkedSeries.getName(), "testSeries" );
+            Assert.assertEquals( chunkedSeries.getColumns().length, 3 );
+            
+            // Can't be sure how many rows we'll get in each chunk so not asserting on that.
+            Assert.assertTrue( chunkedSeries.getRows().size() > 0 );
+            Assert.assertEquals( chunkedSeries.getRows().get( 0 ).size(), 3 );
+            
+            System.out.printf( "%s [%s]: %d rows\n", chunkedSeries.getName(), 
+                               Arrays.toString( chunkedSeries.getColumns() ), 
+                               chunkedSeries.getRows().size() );
+
+            totalRows += chunkedSeries.getRows().size();
+        }
+
+        Assert.assertEquals( totalRows, rows );
+        Assert.assertTrue( response.isEndOfStream() );
+        Assert.assertNull( response.nextChunk() );
+
+        this.influxDB.deleteDatabase(dbName);
+    }
 
 	/**
 	 * Test that querying works.

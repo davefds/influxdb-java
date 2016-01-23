@@ -1,7 +1,6 @@
 package org.influxdb.impl;
 
 import java.util.List;
-
 import org.influxdb.dto.ContinuousQuery;
 import org.influxdb.dto.Database;
 import org.influxdb.dto.DatabaseConfiguration;
@@ -21,6 +20,7 @@ import retrofit.http.GET;
 import retrofit.http.POST;
 import retrofit.http.Path;
 import retrofit.http.Query;
+import retrofit.http.Streaming;
 
 interface InfluxDBService {
 
@@ -57,6 +57,11 @@ interface InfluxDBService {
 	@GET("/db/{name}/series")
 	public List<Serie> query(@Path(NAME) String name, @Query(Q) String query, @Query(U) String username,
 			@Query(P) String password, @Query("time_precision") String timePrecision);
+
+	@Streaming
+    @GET("/db/{name}/series?chunked=true")
+    public Response streamingResponseQuery(@Path(NAME) String name, @Query(Q) String query, @Query(U) String username,
+            @Query(P) String password, @Query("time_precision") String timePrecision);
 
 	@POST("/cluster_admins")
 	public String createClusterAdmin(@Body User user, @Query(U) String username, @Query(P) String password);

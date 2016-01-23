@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.influxdb.InfluxDB;
+import org.influxdb.dto.ChunkedResponse;
 import org.influxdb.dto.ContinuousQuery;
 import org.influxdb.dto.Database;
 import org.influxdb.dto.DatabaseConfiguration;
@@ -27,7 +28,6 @@ import retrofit.RestAdapter;
 import retrofit.client.Header;
 import retrofit.client.OkClient;
 import retrofit.client.Response;
-
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
@@ -151,7 +151,21 @@ public class InfluxDBImpl implements InfluxDB {
 		return this.influxDBService.query(database, query, this.username, this.password, toTimePrecision(precision));
 	}
 
-	@Override
+    @Override
+    public ChunkedResponse chunkedResponseQuery(final String database, final String query, final TimeUnit precision) {
+        long start = System.currentTimeMillis();
+        Response response = this.influxDBService.streamingResponseQuery(database, query, this.username, this.password, toTimePrecision(precision));
+
+        try {
+            ChunkedResponse result = new ChunkedResponse(start, database, query, precision, response);
+            return result;
+        } catch ( IOException e ) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    @Override
 	public void createDatabase(final String name) {
 		Database db = new Database(name);
 		this.influxDBService.createDatabase(db, this.username, this.password);

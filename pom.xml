@@ -7,13 +7,14 @@
   </parent>
 
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>org.influxdb</groupId>
+	<groupId>com.formationds</groupId>
 	<artifactId>influxdb-java</artifactId>
 	<packaging>jar</packaging>
-	<version>1.6-SNAPSHOT</version>
+	<version>1.6.1-SNAPSHOT</version>
 	<name>influxdb java bindings</name>
-	<description>Java API to access the InfluxDB REST API</description>
-	<url>http://www.influxdb.org</url>
+	<description>Fork of org.influxdb.influxdb-java to add chunked response support.  
+
+Java API to access the InfluxDB REST API</description>
   <licenses>
     <license>
       <name>The MIT License (MIT)</name>
@@ -26,9 +27,9 @@
 	</properties>
 
   <scm>
-    <connection>scm:git:git@github.com:influxdb/influxdb-java.git</connection>
-    <developerConnection>scm:git:git@github.com:influxdb/influxdb-java.git</developerConnection>
-    <url>git@github.com:influxdb/influxdb-java.git</url>
+    <connection>scm:git:git@github.com:davefds/influxdb-java.git</connection>
+    <developerConnection>scm:git:git@github.com:davefds/influxdb-java.git</developerConnection>
+    <url>git@github.com:davefds/influxdb-java.git</url>
   </scm>
 
   <developers>
@@ -51,8 +52,8 @@
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
 					<configuration>
-						<source>1.6</source>
-						<target>1.6</target>
+						<source>1.7</source>
+						<target>1.7</target>
 					</configuration>
 				</plugin>
 			</plugins>
