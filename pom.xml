@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <groupId>org.sonatype.oss</groupId>
-    <artifactId>oss-parent</artifactId>
-    <version>7</version>
+    <artifactId>company-pom</artifactId>
+    <version>1.0.4</version>
+    <groupId>com.formationds</groupId>
   </parent>
 
 	<modelVersion>4.0.0</modelVersion>
@@ -82,7 +82,8 @@ Java API to access the InfluxDB REST API</description>
 			<artifactId>retrofit</artifactId>
 			<version>1.9.0</version>
 		</dependency>
-		<!-- If we use okhttp instead of java urlconnection we achieve server failover of the influxdb server address resolves to all influxdb server ips.-->
+		<!-- If we use okhttp instead of java urlconnection we achieve server failover 
+		     of the influxdb server address resolves to all influxdb server ips.-->
 		<dependency>
 			<groupId>com.squareup.okhttp</groupId>
 			<artifactId>okhttp</artifactId>
