@@ -334,52 +334,131 @@ public class InfluxDBTest {
     public void testChunkedResponseQuery() throws IOException {
         String dbName = "chunked-response-query-unittest-" + System.currentTimeMillis();
         this.influxDB.createDatabase(dbName);
-
-        int rows = 1000;
-        Serie[] series = new Serie[rows];
-        long startTime = System.currentTimeMillis() - rows;
-        for (int i = 0; i < rows; i++) {
-            Serie serie = new Serie.Builder("testSeries")
-                    .columns("time", "value2")
-                    .values(startTime+i, i)
-                    .build();
-            series[i] = serie;
+        try {
+            int rows = 1000;
+            Serie[] series = new Serie[rows];
+            long startTime = System.currentTimeMillis() - rows;
+            for (int i = 0; i < rows; i++) {
+                Serie serie = new Serie.Builder("testSeries")
+                        .columns("time", "value2")
+                        .values(startTime+i, i)
+                        .build();
+                series[i] = serie;
+            }
+    
+            this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
+    
+            //List<Serie> result = this.influxDB.query(dbName, "select value2 from testSeries", TimeUnit.MILLISECONDS);
+            ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from testSeries", TimeUnit.MILLISECONDS);
+    
+            Assert.assertNotNull( response );
+            Assert.assertTrue( response.isChunked() );
+            Assert.assertFalse( response.isEndOfStream() );
+    
+            int totalRows = 0;
+            Serie chunkedSeries = null;
+            while ( (chunkedSeries = response.nextChunk()) != null) {
+    
+                Assert.assertEquals( chunkedSeries.getName(), "testSeries" );
+                Assert.assertEquals( chunkedSeries.getColumns().length, 3 );
+                
+                // Can't be sure how many rows we'll get in each chunk so not asserting on that.
+                Assert.assertTrue( chunkedSeries.getRows().size() > 0 );
+                Assert.assertEquals( chunkedSeries.getRows().get( 0 ).size(), 3 );
+                
+                System.out.printf( "%s [%s]: %d rows\n", chunkedSeries.getName(), 
+                                   Arrays.toString( chunkedSeries.getColumns() ), 
+                                   chunkedSeries.getRows().size() );
+    
+                totalRows += chunkedSeries.getRows().size();
+            }
+    
+            Assert.assertEquals( totalRows, rows );
+            Assert.assertTrue( response.isEndOfStream() );
+            Assert.assertNull( response.nextChunk() );
+        } finally {
+            this.influxDB.deleteDatabase(dbName);
         }
-
-        this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
-
-        //List<Serie> result = this.influxDB.query(dbName, "select value2 from testSeries", TimeUnit.MILLISECONDS);
-        ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from testSeries", TimeUnit.MILLISECONDS);
-
-        Assert.assertNotNull( response );
-        Assert.assertTrue( response.isChunked() );
-        Assert.assertFalse( response.isEndOfStream() );
-
-        int totalRows = 0;
-        Serie chunkedSeries = null;
-        while ( (chunkedSeries = response.nextChunk()) != null) {
-
-            Assert.assertEquals( chunkedSeries.getName(), "testSeries" );
-            Assert.assertEquals( chunkedSeries.getColumns().length, 3 );
-            
-            // Can't be sure how many rows we'll get in each chunk so not asserting on that.
-            Assert.assertTrue( chunkedSeries.getRows().size() > 0 );
-            Assert.assertEquals( chunkedSeries.getRows().get( 0 ).size(), 3 );
-            
-            System.out.printf( "%s [%s]: %d rows\n", chunkedSeries.getName(), 
-                               Arrays.toString( chunkedSeries.getColumns() ), 
-                               chunkedSeries.getRows().size() );
-
-            totalRows += chunkedSeries.getRows().size();
-        }
-
-        Assert.assertEquals( totalRows, rows );
-        Assert.assertTrue( response.isEndOfStream() );
-        Assert.assertNull( response.nextChunk() );
-
-        this.influxDB.deleteDatabase(dbName);
     }
 
+    /**
+     * Test that chunked response querying works.
+     * @throws IOException
+     */
+    @Test
+    public void testChunkedResponseQueryLimit() throws IOException {
+        String dbName = "chunked-response-query-unittest-" + System.currentTimeMillis();
+        this.influxDB.createDatabase(dbName);
+        try {
+            int rows = 1000;
+            Serie[] series = new Serie[rows];
+            long startTime = System.currentTimeMillis() - rows;
+            for (int i = 0; i < rows; i++) {
+                Serie serie = new Serie.Builder("testSeries")
+                        .columns("time", "value2")
+                        .values(startTime+i, i)
+                        .build();
+                series[i] = serie;
+            }
+    
+            this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
+    
+            //List<Serie> result = this.influxDB.query(dbName, "select value2 from testSeries", TimeUnit.MILLISECONDS);
+            ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from testSeries limit 10", TimeUnit.MILLISECONDS);
+    
+            Assert.assertNotNull( response );
+            Assert.assertTrue( response.isChunked() );
+            Assert.assertFalse( response.isEndOfStream() );
+            
+            Serie s = response.nextChunk();
+            Assert.assertEquals( s.getRows().size(), 10 );
+            
+            Assert.assertTrue(  response.isEndOfStream() );
+            Assert.assertNull( response.nextChunk() );
+            
+        } finally {
+            this.influxDB.deleteDatabase(dbName);
+        }
+    }  
+    
+    /**
+     * Test that chunked response querying works on an empty result.
+     * @throws IOException
+     */
+    @Test
+    public void testChunkedResponseQueryEmpty() throws IOException {
+        String dbName = "chunked-response-empty-query-unittest-" + System.currentTimeMillis();
+        this.influxDB.createDatabase(dbName);
+        
+        try {
+            
+            int rows = 1;
+            Serie[] series = new Serie[rows];
+            long startTime = System.currentTimeMillis() - rows;
+            for (int i = 0; i < rows; i++) {
+                Serie serie = new Serie.Builder("testSeries")
+                        .columns("time", "value2")
+                        .values(startTime+i, i)
+                        .build();
+                series[i] = serie;
+            }
+    
+            this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
+            
+            // exec a query that returns no rows.
+            ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from testSeries where value2 = 9999 limit 10", TimeUnit.MILLISECONDS);
+    
+            Assert.assertNotNull( response );
+            Assert.assertFalse( response.isChunked() );
+            
+            Assert.assertNull( response.nextChunk() );
+            
+        } finally {
+            this.influxDB.deleteDatabase(dbName);            
+        }
+    }  
+    
+    
 	/**
 	 * Test that querying works.
 	 */
