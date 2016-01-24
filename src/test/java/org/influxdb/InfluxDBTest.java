@@ -457,7 +457,43 @@ public class InfluxDBTest {
             this.influxDB.deleteDatabase(dbName);            
         }
     }  
+
+    /**
+     * Test that chunked response querying works on an empty result.
+     * @throws IOException
+     */
+    @Test
+    public void testChunkedResponseQueryNonExistingSeries() throws IOException {
+        String dbName = "chunked-response-empty-query-noexist-unittest-" + System.currentTimeMillis();
+        this.influxDB.createDatabase(dbName);
+        
+        try {
+            
+            int rows = 1;
+            Serie[] series = new Serie[rows];
+            long startTime = System.currentTimeMillis() - rows;
+            for (int i = 0; i < rows; i++) {
+                Serie serie = new Serie.Builder("testSeries")
+                        .columns("time", "value2")
+                        .values(startTime+i, i)
+                        .build();
+                series[i] = serie;
+            }
     
+            this.influxDB.write(dbName, TimeUnit.MILLISECONDS, series);
+            
+            // exec a query that returns no rows.
+            ChunkedResponse response = this.influxDB.chunkedResponseQuery(dbName, "select * from non_existent_series limit 10", TimeUnit.MILLISECONDS);
+    
+            Assert.fail("Expecting exception");
+            
+        } catch (Exception e) {
+            Assert.assertEquals( e.getMessage(), "Couldn't find series: non_existent_series" );
+        } finally {
+            this.influxDB.deleteDatabase(dbName);            
+        }
+    }  
+
     
 	/**
 	 * Test that querying works.
